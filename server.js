@@ -7,7 +7,7 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// ===== CORS setup =====
+// ===== CORS =====
 app.use(
   cors({
     origin: [
@@ -18,18 +18,19 @@ app.use(
   })
 );
 
-// ===== AUTH SERVICE PROXY =====
-// Frontend calls:  https://proxy-service-0s6s.onrender.com/api/auth/login
-// Backend target:  https://stay-next-auth-service.onrender.com/api/auth/login
+// ===== AUTH PROXY =====
+// This keeps `/api/auth` fully intact when forwarding.
 app.use(
   "/api/auth",
   createProxyMiddleware({
     target: process.env.AUTH_SERVICE, // e.g. https://stay-next-auth-service.onrender.com
     changeOrigin: true,
     pathRewrite: {
-      "^/api/auth": "/api/auth", // ✅ keep path identical
+      // ❌ remove the bad rewrite
+      // ✅ keep the path untouched
     },
-    onProxyReq: (proxyReq, req, res) => {
+    cookieDomainRewrite: "", // for cookies to work under proxy domain
+    onProxyReq: (proxyReq, req) => {
       console.log(`[PROXY] ${req.method} ${req.originalUrl} → ${process.env.AUTH_SERVICE}${req.originalUrl}`);
     },
     onError: (err, req, res) => {
@@ -39,9 +40,16 @@ app.use(
   })
 );
 
-// ===== Root route =====
+// ===== ROOT TEST =====
 app.get("/", (req, res) => {
   res.send("✅ StayNext Proxy is live and forwarding requests...");
 });
 
-app.listen(PORT, () => console.log(`✅ Proxy running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log("=========================================");
+  console.log(`✅ StayNext Proxy Server Running`);
+  console.log(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
+  console.log(`📡 Port: ${PORT}`);
+  console.log(`🔐 AUTH_SERVICE: ${process.env.AUTH_SERVICE}`);
+  console.log("=========================================");
+});
