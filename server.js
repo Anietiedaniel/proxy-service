@@ -1,84 +1,58 @@
+// server.js
 import express from "express";
-import { createProxyMiddleware } from "http-proxy-middleware";
 import cors from "cors";
+import morgan from "morgan";
 import dotenv from "dotenv";
-dotenv.config();
+import { createProxyMiddleware } from "http-proxy-middleware";
 
+dotenv.config();
 const app = express();
 
-// ===== Middleware =====
+// ========== ENV VARIABLES ==========
+const PORT = process.env.PORT || 8080;
+const FRONTEND_ORIGIN = "https://stay-next-frontend-production.up.railway.app";
+const AUTH_SERVICE = "https://stay-next-auth-service-4.onrender.com"; // your auth service URL
+
+// ========== MIDDLEWARE ==========
+app.use(morgan("dev"));
 app.use(express.json());
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "https://stay-next-frontend-production.up.railway.app",
-    ],
+    origin: FRONTEND_ORIGIN,
     credentials: true,
   })
 );
 
-// 🔍 Log every request
-app.use((req, res, next) => {
-  console.log(
-    `➡️  [${req.method}] ${req.originalUrl}\n   Headers:`,
-    JSON.stringify(req.headers, null, 2)
-  );
-  next();
-});
-
-// =============================================
-// 🔹 AUTH SERVICE PROXY
-// =============================================
+// ========== PROXY SETUP ==========
 app.use(
   "/api/auth",
   createProxyMiddleware({
-    target: process.env.AUTH_SERVICE,
+    target: AUTH_SERVICE,
     changeOrigin: true,
+    credentials: true,
     pathRewrite: { "^/api/auth": "/api/auth" },
-    cookieDomainRewrite: "",
     onProxyReq: (proxyReq, req, res) => {
-      console.log(`🚀 Forwarding [${req.method}] → AUTH_SERVICE: ${req.originalUrl}`);
-    },
-    onError: (err, req, res) => {
-      console.error("❌ AUTH proxy error:", err);
+      if (req.body && Object.keys(req.body).length) {
+        const bodyData = JSON.stringify(req.body);
+        proxyReq.setHeader("Content-Type", "application/json");
+        proxyReq.setHeader("Content-Length", Buffer.byteLength(bodyData));
+        proxyReq.write(bodyData);
+      }
     },
   })
 );
 
-// =============================================
-// 🔹 AGENT SERVICE PROXY
-// =============================================
-app.use(
-  "/api/agents",
-  createProxyMiddleware({
-    target: process.env.AGENT_SERVICE,
-    changeOrigin: true,
-    pathRewrite: { "^/api/agents": "/api/agents" },
-    cookieDomainRewrite: "",
-    onProxyReq: (proxyReq, req, res) => {
-      console.log(`🚀 Forwarding [${req.method}] → AGENT_SERVICE: ${req.originalUrl}`);
-    },
-    onError: (err, req, res) => {
-      console.error("❌ AGENT proxy error:", err);
-    },
-  })
-);
-
-// =============================================
-// ✅ Test Route
-// =============================================
+// ========== HEALTH CHECK ==========
 app.get("/", (req, res) => {
-  res.send("🟢 StayNext Proxy is active and forwarding requests...");
+  res.send("✅ StayNext Proxy Server Running");
 });
 
-const PORT = process.env.PORT || 8080;
+// ========== START SERVER ==========
 app.listen(PORT, () => {
   console.log("=========================================");
-  console.log("✅ StayNext Proxy Server Running");
-  console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
+  console.log(`✅ StayNext Proxy Server Running`);
+  console.log(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
   console.log(`📡 Port: ${PORT}`);
-  console.log(`🔐 AUTH_SERVICE: ${process.env.AUTH_SERVICE}`);
-  console.log(`🧠 AGENT_SERVICE: ${process.env.AGENT_SERVICE}`);
+  console.log(`🔐 AUTH_SERVICE: ${AUTH_SERVICE}`);
   console.log("=========================================");
 });
