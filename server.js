@@ -1,58 +1,47 @@
-// server.js
 import express from "express";
 import cors from "cors";
-// import morgan from "morgan";
 import dotenv from "dotenv";
 import { createProxyMiddleware } from "http-proxy-middleware";
 
 dotenv.config();
 const app = express();
-
-// ========== ENV VARIABLES ==========
 const PORT = process.env.PORT || 8080;
-const FRONTEND_ORIGIN = "https://stay-next-frontend-production.up.railway.app";
-const AUTH_SERVICE = "https://stay-next-auth-service-4.onrender.com"; // your auth service URL
 
-// ========== MIDDLEWARE ==========
-// app.use(morgan("dev"));
-app.use(express.json());
+// ===== CORS setup =====
 app.use(
   cors({
-    origin: FRONTEND_ORIGIN,
+    origin: [
+      "http://localhost:5173",
+      "https://stay-next-frontend-production.up.railway.app",
+    ],
     credentials: true,
   })
 );
 
-// ========== PROXY SETUP ==========
+// ===== AUTH SERVICE PROXY =====
+// Frontend calls:  https://proxy-service-0s6s.onrender.com/api/auth/login
+// Backend target:  https://stay-next-auth-service.onrender.com/api/auth/login
 app.use(
   "/api/auth",
   createProxyMiddleware({
-    target: AUTH_SERVICE,
+    target: process.env.AUTH_SERVICE, // e.g. https://stay-next-auth-service.onrender.com
     changeOrigin: true,
-    credentials: true,
-    pathRewrite: { "^/api/auth": "/api/auth" },
+    pathRewrite: {
+      "^/api/auth": "/api/auth", // ✅ keep path identical
+    },
     onProxyReq: (proxyReq, req, res) => {
-      if (req.body && Object.keys(req.body).length) {
-        const bodyData = JSON.stringify(req.body);
-        proxyReq.setHeader("Content-Type", "application/json");
-        proxyReq.setHeader("Content-Length", Buffer.byteLength(bodyData));
-        proxyReq.write(bodyData);
-      }
+      console.log(`[PROXY] ${req.method} ${req.originalUrl} → ${process.env.AUTH_SERVICE}${req.originalUrl}`);
+    },
+    onError: (err, req, res) => {
+      console.error("❌ Proxy error:", err.message);
+      res.status(502).json({ error: "Bad Gateway", details: err.message });
     },
   })
 );
 
-// ========== HEALTH CHECK ==========
+// ===== Root route =====
 app.get("/", (req, res) => {
-  res.send("✅ StayNext Proxy Server Running");
+  res.send("✅ StayNext Proxy is live and forwarding requests...");
 });
 
-// ========== START SERVER ==========
-app.listen(PORT, () => {
-  console.log("=========================================");
-  console.log(`✅ StayNext Proxy Server Running`);
-  console.log(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
-  console.log(`📡 Port: ${PORT}`);
-  console.log(`🔐 AUTH_SERVICE: ${AUTH_SERVICE}`);
-  console.log("=========================================");
-});
+app.listen(PORT, () => console.log(`✅ Proxy running on port ${PORT}`));
