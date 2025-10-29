@@ -14,7 +14,7 @@ app.use(express.json());
 app.use(morgan("dev"));
 
 // ===== Backend URLs =====
-const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || "https://your-auth-service.onrender.com";
+const AUTH_SERVICE_URL = process.env.AUTH_SERVICE || "https://your-auth-service-4.onrender.com";
 
 // ===== Proxy Routes =====
 app.use(
