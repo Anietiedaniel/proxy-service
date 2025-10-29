@@ -1,7 +1,7 @@
 // server.js
 import express from "express";
 import cors from "cors";
-import morgan from "morgan";
+// import morgan from "morgan";
 import dotenv from "dotenv";
 import { createProxyMiddleware } from "http-proxy-middleware";
 
@@ -14,7 +14,7 @@ const FRONTEND_ORIGIN = "https://stay-next-frontend-production.up.railway.app";
 const AUTH_SERVICE = "https://stay-next-auth-service-4.onrender.com"; // your auth service URL
 
 // ========== MIDDLEWARE ==========
-app.use(morgan("dev"));
+// app.use(morgan("dev"));
 app.use(express.json());
 app.use(
   cors({
