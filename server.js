@@ -7,49 +7,46 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// ===== CORS =====
+// ===== Middleware =====
+app.use(express.json());
 app.use(
   cors({
     origin: [
-      "http://localhost:5173",
       "https://stay-next-frontend-production.up.railway.app",
+      "http://localhost:5173",
     ],
     credentials: true,
   })
 );
 
-// ===== AUTH PROXY =====
-// This keeps `/api/auth` fully intact when forwarding.
+// ===== Proxy setup =====
+// This version *preserves* "/api/auth" fully.
 app.use(
   "/api/auth",
   createProxyMiddleware({
-    target: process.env.AUTH_SERVICE, // e.g. https://stay-next-auth-service.onrender.com
+    target: process.env.AUTH_SERVICE, // your backend base URL
     changeOrigin: true,
-    pathRewrite: {
-      // ❌ remove the bad rewrite
-      // ✅ keep the path untouched
+    secure: false,
+    // DO NOT strip /api/auth from path
+    pathRewrite: (path) => path, // keep it as-is
+    cookieDomainRewrite: "", // allow cookies from backend to match proxy domain
+    logLevel: "debug", // helps you see what’s going on in logs
+    onProxyReq(proxyReq, req) {
+      console.log(`➡️ Forwarding: ${req.method} ${req.originalUrl}`);
     },
-    cookieDomainRewrite: "", // for cookies to work under proxy domain
-    onProxyReq: (proxyReq, req) => {
-      console.log(`[PROXY] ${req.method} ${req.originalUrl} → ${process.env.AUTH_SERVICE}${req.originalUrl}`);
-    },
-    onError: (err, req, res) => {
-      console.error("❌ Proxy error:", err.message);
-      res.status(502).json({ error: "Bad Gateway", details: err.message });
+    onError(err, req, res) {
+      console.error("❌ Proxy Error:", err.message);
+      res.status(502).json({ message: "Proxy Error", details: err.message });
     },
   })
 );
 
-// ===== ROOT TEST =====
+// ===== Health route =====
 app.get("/", (req, res) => {
-  res.send("✅ StayNext Proxy is live and forwarding requests...");
+  res.send("✅ Proxy is running and configured correctly!");
 });
 
 app.listen(PORT, () => {
-  console.log("=========================================");
-  console.log(`✅ StayNext Proxy Server Running`);
-  console.log(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
-  console.log(`📡 Port: ${PORT}`);
-  console.log(`🔐 AUTH_SERVICE: ${process.env.AUTH_SERVICE}`);
-  console.log("=========================================");
+  console.log(`🚀 Proxy server live on port ${PORT}`);
+  console.log(`🔗 Target: ${process.env.AUTH_SERVICE}`);
 });
