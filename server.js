@@ -1,52 +1,42 @@
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
+import morgan from "morgan";
 import { createProxyMiddleware } from "http-proxy-middleware";
+import dotenv from "dotenv";
 
 dotenv.config();
+
 const app = express();
-const PORT = process.env.PORT || 8080;
 
 // ===== Middleware =====
+app.use(cors());
 app.use(express.json());
-app.use(
-  cors({
-    origin: [
-      "https://stay-next-frontend-production.up.railway.app",
-      "http://localhost:5173",
-    ],
-    credentials: true,
-  })
-);
+app.use(morgan("dev"));
 
-// ===== Proxy setup =====
-// This version *preserves* "/api/auth" fully.
+// ===== Backend URLs =====
+const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || "https://your-auth-service.onrender.com";
+
+// ===== Proxy Routes =====
 app.use(
   "/api/auth",
   createProxyMiddleware({
-    target: process.env.AUTH_SERVICE, // your backend base URL
+    target: AUTH_SERVICE_URL,
     changeOrigin: true,
-    secure: false,
-    // DO NOT strip /api/auth from path
-    pathRewrite: (path) => path, // keep it as-is
-    cookieDomainRewrite: "", // allow cookies from backend to match proxy domain
-    logLevel: "debug", // helps you see what’s going on in logs
-    onProxyReq(proxyReq, req) {
-      console.log(`➡️ Forwarding: ${req.method} ${req.originalUrl}`);
+    pathRewrite: { "^/api/auth": "/api/auth" }, // keeps path intact
+    onProxyReq: (proxyReq, req) => {
+      console.log(`[Proxy] ${req.method} ${req.originalUrl} → ${AUTH_SERVICE_URL}${req.originalUrl}`);
     },
-    onError(err, req, res) {
-      console.error("❌ Proxy Error:", err.message);
-      res.status(502).json({ message: "Proxy Error", details: err.message });
+    onError: (err, req, res) => {
+      console.error("[Proxy Error]", err);
+      res.status(500).json({ message: "Proxy failed", error: err.message });
     },
   })
 );
 
-// ===== Health route =====
+// ===== Health Check =====
 app.get("/", (req, res) => {
-  res.send("✅ Proxy is running and configured correctly!");
+  res.send("✅ Proxy service running");
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Proxy server live on port ${PORT}`);
-  console.log(`🔗 Target: ${process.env.AUTH_SERVICE}`);
-});
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => console.log(`🚀 Proxy running on port ${PORT}`));
